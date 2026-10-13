@@ -50,7 +50,7 @@ if not INDEX_FILE.exists():
         "static/index.html not found. "
         "Check that the file exists in the static folder."
     )
-BASE_DIR = Path(__file__).resolve().parent
+
 app = FastAPI(title="Telegram Circle Wall")
 
 app.mount(
@@ -58,9 +58,10 @@ app.mount(
     StaticFiles(directory=str(MEDIA)),
     name="media",
 )
+
 app.mount(
     "/static",
-    StaticFiles(directory=str(BASE_DIR / "static")),
+    StaticFiles(directory=str(STATIC)),
     name="static",
 )
 
@@ -88,28 +89,63 @@ async def videos():
         MEDIA.glob("*.mp4"),
         key=lambda x: x.stat().st_mtime,
     ):
+        metadata_file = p.with_suffix(".json")
+        sender = "Гість"
+
+        if metadata_file.exists():
+            try:
+                metadata = json.loads(
+                    metadata_file.read_text(encoding="utf-8")
+                )
+                sender = metadata.get("sender", "Гість")
+            except (ValueError, OSError):
+                logging.warning(
+                    "Could not read metadata for %s",
+                    p.name,
+                )
+
         result.append({
             "id": p.stem,
             "url": f"/media/{p.name}",
             "created": p.stat().st_mtime,
+            "sender": sender,
         })
 
     return result
+
+
 @app.post("/api/videos/clear")
 async def clear_videos():
     deleted = 0
 
     for p in MEDIA.glob("*.mp4"):
+        metadata_file = p.with_suffix(".json")
+
         try:
             p.unlink()
             deleted += 1
+
+            # Delete metadata belonging to this video.
+            try:
+                metadata_file.unlink(missing_ok=True)
+            except OSError:
+                logging.exception(
+                    "Could not delete metadata: %s",
+                    metadata_file,
+                )
+
         except OSError:
-            logging.exception("Could not delete video: %s", p)
+            logging.exception(
+                "Could not delete video: %s",
+                p,
+            )
 
     await broadcast({"type": "clear"})
 
     logging.info("Cleared %s video notes", deleted)
+
     return {"status": "ok", "deleted": deleted}
+
 
 @app.get("/api/events")
 async def events_stream():
@@ -118,23 +154,24 @@ async def events_stream():
 
     async def generator():
         try:
-            # Tell the browser that the connection is active.
             yield "retry: 3000\n\n"
 
-            # Send a heartbeat periodically.
             while True:
                 try:
                     item = await asyncio.wait_for(
                         queue.get(),
                         timeout=20,
                     )
+
                     yield (
                         "data: "
                         + json.dumps(item, ensure_ascii=False)
                         + "\n\n"
                     )
+
                 except asyncio.TimeoutError:
                     yield ": heartbeat\n\n"
+
         finally:
             subscribers.discard(queue)
 
@@ -179,20 +216,37 @@ async def handle_video(
             custom_path=str(target)
         )
 
+        user = message.from_user
+
+        if user:
+            sender = user.full_name.strip() or "Гість"
+
+            if user.username:
+                sender = f"{sender} (@{user.username})"
+        else:
+            sender = "Гість"
+
         item = {
             "id": target.stem,
             "url": f"/media/{filename}",
             "created": time.time(),
-            "sender": (
-                message.from_user.first_name
-                if message.from_user
-                else "Guest"
-            ),
+            "sender": sender,
         }
+
+        # Save the video information so the name survives restarts.
+        metadata_file = target.with_suffix(".json")
+        metadata_file.write_text(
+            json.dumps(item, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
         await broadcast(item)
 
-        logging.info("New video note saved: %s", filename)
+        logging.info(
+            "New video note saved: %s, sender: %s",
+            filename,
+            sender,
+        )
 
         try:
             await message.reply_text(
@@ -253,7 +307,9 @@ async def run_bot():
         await bot_app.start()
 
         if bot_app.updater is None:
-            raise RuntimeError("Telegram updater is unavailable")
+            raise RuntimeError(
+                "Telegram updater is unavailable"
+            )
 
         await bot_app.updater.start_polling(
             poll_interval=1.0,
