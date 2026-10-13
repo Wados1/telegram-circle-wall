@@ -138,6 +138,53 @@ header {
         0 0 8px rgba(0, 0, 0, 0.9);
 }
 
+/* Перегляд кружечка у великому розмірі */
+.video-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.88);
+    cursor: pointer;
+}
+
+.video-modal.open {
+    display: flex;
+}
+
+.video-modal video {
+    display: block;
+    width: min(78vw, 72vh);
+    height: min(78vw, 72vh);
+    max-width: calc(100vw - 36px);
+    max-height: calc(100vh - 110px);
+    object-fit: contain;
+    border-radius: 50%;
+    background: #111;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.3), 0 12px 50px rgba(0,0,0,0.6);
+    cursor: default;
+}
+
+.video-modal-name {
+    max-width: 90vw;
+    color: #fff;
+    font-size: clamp(18px, 2.5vw, 30px);
+    font-weight: 700;
+    text-align: center;
+    text-shadow: 0 2px 8px #000;
+}
+
+.video-modal-hint {
+    color: rgba(255,255,255,0.75);
+    font-size: 14px;
+    text-align: center;
+}
+
 #empty {
     position: fixed;
     inset: 10vh 0 0;
@@ -311,6 +358,12 @@ header {
 
 <main id="wall"></main>
 
+<div id="videoModal" class="video-modal" aria-hidden="true" title="Натисни поза відео, щоб закрити">
+    <video id="modalVideo" controls playsinline></video>
+    <div id="modalVideoName" class="video-modal-name"></div>
+    <div class="video-modal-hint">Натисни поза відео або Esc, щоб закрити</div>
+</div>
+
 <div id="controls">
     <label class="control-button" title="Завантажити фон"
            aria-label="Завантажити фонове зображення">
@@ -338,6 +391,9 @@ const titleButton = document.getElementById("titleButton");
 const clearButton = document.getElementById("clearButton");
 const fullscreenButton = document.getElementById("fullscreenButton");
 const pageTitle = document.querySelector("header");
+const videoModal = document.getElementById("videoModal");
+const modalVideo = document.getElementById("modalVideo");
+const modalVideoName = document.getElementById("modalVideoName");
 
 const videos = new Map();
 
@@ -524,6 +580,44 @@ function updateLayout() {
     wall.style.gap = `${gap}px`;
 }
 
+// Відкриття відео у великому розмірі
+function openVideoModal(item) {
+    modalVideo.src = item.url;
+    modalVideoName.textContent = item.sender || "Гість";
+    videoModal.classList.add("open");
+    videoModal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    modalVideo.currentTime = 0;
+    modalVideo.play().catch(error => {
+        console.warn("Не вдалося запустити збільшене відео:", error);
+    });
+}
+
+function closeVideoModal() {
+    videoModal.classList.remove("open");
+    videoModal.setAttribute("aria-hidden", "true");
+    modalVideo.pause();
+    modalVideo.removeAttribute("src");
+    modalVideo.load();
+    document.body.style.overflow = "hidden";
+}
+
+videoModal.addEventListener("click", event => {
+    if (event.target === videoModal) {
+        closeVideoModal();
+    }
+});
+
+modalVideo.addEventListener("click", event => {
+    event.stopPropagation();
+});
+
+window.addEventListener("keydown", event => {
+    if (event.key === "Escape" && videoModal.classList.contains("open")) {
+        closeVideoModal();
+    }
+});
+
 // Видалення кружечків з екрана
 function removeAllCards() {
     for (const card of videos.values()) {
@@ -564,6 +658,10 @@ function addCard(item) {
     video.addEventListener("error", () => {
         console.error("Не вдалося відтворити відео:", item.url);
     });
+
+    video.title = "Натисни, щоб збільшити відео";
+    video.style.cursor = "pointer";
+    video.addEventListener("click", () => openVideoModal(item));
 
     card.appendChild(video);
 
