@@ -4,11 +4,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Telegram Circle Wall</title>
+<title>Крістіан та Світлана</title>
 
 <style>
 * {
     box-sizing: border-box;
+}
+
+:root {
+    --wall-background: #070707;
 }
 
 html, body {
@@ -16,9 +20,13 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #070707;
+    background: var(--wall-background);
     color: white;
     font-family: Arial, sans-serif;
+}
+
+body {
+    transition: background-color 0.25s ease;
 }
 
 header {
@@ -26,9 +34,12 @@ header {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0 70px;
+    text-align: center;
     font-size: clamp(18px, 2.5vw, 34px);
     font-weight: 800;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.4);
 }
 
 #wall {
@@ -55,8 +66,8 @@ header {
     background: #151515;
     animation: appear 0.45s ease-out;
     box-shadow:
-        0 0 0 2px rgba(255,255,255,0.12),
-        0 8px 30px rgba(0,0,0,0.5);
+        0 0 0 2px rgba(255,255,255,0.16),
+        0 8px 30px rgba(0,0,0,0.35);
 }
 
 .card video {
@@ -73,10 +84,58 @@ header {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #888;
+    color: rgba(255,255,255,0.75);
     font-size: clamp(18px, 2.5vw, 32px);
     text-align: center;
     padding: 20px;
+}
+
+#controls {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.control-button {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255,255,255,0.24);
+    border-radius: 50%;
+    background: rgba(20,20,20,0.82);
+    color: white;
+    font-size: 23px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    backdrop-filter: blur(8px);
+    transition: transform 0.15s, background 0.15s;
+}
+
+.control-button:hover {
+    transform: scale(1.08);
+    background: rgba(55,55,55,0.95);
+}
+
+#colorPicker {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+#colorLabel {
+    position: relative;
+}
+
+#clearButton:hover {
+    background: rgba(150,35,35,0.95);
 }
 
 @keyframes appear {
@@ -89,24 +148,91 @@ header {
         transform: scale(1);
     }
 }
+
+@media (max-width: 600px) {
+    #controls {
+        right: 12px;
+        bottom: 12px;
+        gap: 8px;
+    }
+
+    .control-button {
+        width: 44px;
+        height: 44px;
+        font-size: 21px;
+    }
+
+    header {
+        padding: 0 12px;
+        font-size: clamp(17px, 5vw, 26px);
+    }
+}
 </style>
 </head>
 
 <body>
 
-<header>🎥 LIVE CIRCLE WALL</header>
+<header>💍 Крістіан та Світлана 💍</header>
 
 <div id="empty">
-    Надішліть кружечок у Telegram-бота
+    Надішліть кружечок у Telegram-бота ❤️
 </div>
 
 <main id="wall"></main>
 
+<div id="controls">
+    <label id="colorLabel" title="Змінити колір фону">
+        <input id="colorPicker" type="color" value="#070707"
+               aria-label="Вибрати колір фону">
+        <span class="control-button" aria-hidden="true">🎨</span>
+    </label>
+
+    <button id="clearButton" class="control-button"
+            title="Очистити всі кружечки"
+            aria-label="Очистити всі кружечки">🗑️</button>
+
+    <button id="fullscreenButton" class="control-button"
+            title="На весь екран"
+            aria-label="Увімкнути повноекранний режим">⛶</button>
+</div>
+
 <script>
 const wall = document.getElementById("wall");
 const empty = document.getElementById("empty");
+const colorPicker = document.getElementById("colorPicker");
+const clearButton = document.getElementById("clearButton");
+const fullscreenButton = document.getElementById("fullscreenButton");
+const colorLabel = document.getElementById("colorLabel");
 
 const videos = new Map();
+
+function setBackground(color) {
+    document.documentElement.style.setProperty("--wall-background", color);
+    colorPicker.value = color;
+
+    try {
+        localStorage.setItem("circleWallBackground", color);
+    } catch (error) {
+        console.warn("Не вдалося зберегти колір фону", error);
+    }
+}
+
+try {
+    const savedColor = localStorage.getItem("circleWallBackground");
+    if (savedColor && /^#[0-9a-f]{6}$/i.test(savedColor)) {
+        setBackground(savedColor);
+    }
+} catch (error) {
+    console.warn("Не вдалося прочитати збережений колір", error);
+}
+
+colorLabel.addEventListener("click", () => {
+    colorPicker.click();
+});
+
+colorPicker.addEventListener("input", event => {
+    setBackground(event.target.value);
+});
 
 function updateLayout() {
     const count = videos.size;
@@ -124,15 +250,11 @@ function updateLayout() {
     const height = wall.clientHeight - 20;
     const gap = Math.min(18, Math.max(6, width * 0.012));
 
-    // One large circle; more circles share the available space.
     const cols = count <= 4
         ? Math.ceil(Math.sqrt(count))
         : Math.min(
             count,
-            Math.max(
-                1,
-                Math.round(Math.sqrt(count * width / height))
-            )
+            Math.max(1, Math.round(Math.sqrt(count * width / height)))
         );
 
     const rows = Math.ceil(count / cols);
@@ -146,15 +268,28 @@ function updateLayout() {
         )
     ));
 
-    wall.style.gridTemplateColumns =
-        `repeat(${cols}, ${size}px)`;
-
+    wall.style.gridTemplateColumns = `repeat(${cols}, ${size}px)`;
     wall.style.gridAutoRows = `${size}px`;
     wall.style.gap = `${gap}px`;
 }
 
+function removeAllCards() {
+    for (const card of videos.values()) {
+        const video = card.querySelector("video");
+        if (video) {
+            video.pause();
+            video.removeAttribute("src");
+            video.load();
+        }
+        card.remove();
+    }
+
+    videos.clear();
+    updateLayout();
+}
+
 function addCard(item) {
-    if (videos.has(item.id)) {
+    if (!item || !item.id || !item.url || videos.has(item.id)) {
         return;
     }
 
@@ -176,10 +311,8 @@ function addCard(item) {
 
     card.appendChild(video);
     wall.appendChild(card);
-
     videos.set(item.id, card);
 
-    // Recalculate every circle's size when a new one arrives.
     updateLayout();
 
     video.play().catch(error => {
@@ -195,8 +328,7 @@ async function loadExisting() {
         }
 
         const items = await response.json();
-
-        items.forEach(item => addCard(item));
+        items.forEach(addCard);
     } catch (error) {
         console.error(error);
     }
@@ -207,15 +339,71 @@ const stream = new EventSource("/api/events");
 stream.onmessage = event => {
     try {
         const item = JSON.parse(event.data);
+
+        if (item.type === "clear") {
+            removeAllCards();
+            return;
+        }
+
         addCard(item);
     } catch (error) {
-        console.error("Помилка нового відео:", error);
+        console.error("Помилка оновлення стіни:", error);
     }
 };
 
 stream.onerror = () => {
     console.warn("З'єднання з сервером відновлюється...");
 };
+
+clearButton.addEventListener("click", async () => {
+    const confirmed = window.confirm(
+        "Точно очистити всі кружечки? Відео буде видалено із сервера."
+    );
+
+    if (!confirmed) return;
+
+    clearButton.disabled = true;
+
+    try {
+        const response = await fetch("/api/videos/clear", {
+            method: "POST"
+        });
+
+        if (!response.ok) {
+            throw new Error("Сервер не зміг очистити кружечки");
+        }
+
+        const result = await response.json();
+        removeAllCards();
+        alert(`Готово! Видалено кружечків: ${result.deleted}`);
+    } catch (error) {
+        console.error(error);
+        alert("Не вдалося очистити кружечки. Перевір з'єднання та спробуй ще раз.");
+    } finally {
+        clearButton.disabled = false;
+    }
+});
+
+fullscreenButton.addEventListener("click", async () => {
+    try {
+        if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+        } else {
+            await document.exitFullscreen();
+        }
+    } catch (error) {
+        alert("Не вдалося ввімкнути повноекранний режим у цьому браузері.");
+    }
+});
+
+document.addEventListener("fullscreenchange", () => {
+    fullscreenButton.textContent = document.fullscreenElement ? "⤢" : "⛶";
+    fullscreenButton.title = document.fullscreenElement
+        ? "Вийти з повноекранного режиму"
+        : "На весь екран";
+
+    setTimeout(updateLayout, 100);
+});
 
 window.addEventListener("resize", updateLayout);
 
