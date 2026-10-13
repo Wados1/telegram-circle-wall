@@ -90,7 +90,21 @@ async def videos():
         })
 
     return result
+@app.post("/api/videos/clear")
+async def clear_videos():
+    deleted = 0
 
+    for p in MEDIA.glob("*.mp4"):
+        try:
+            p.unlink()
+            deleted += 1
+        except OSError:
+            logging.exception("Could not delete video: %s", p)
+
+    await broadcast({"type": "clear"})
+
+    logging.info("Cleared %s video notes", deleted)
+    return {"status": "ok", "deleted": deleted}
 
 @app.get("/api/events")
 async def events_stream():
