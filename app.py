@@ -101,7 +101,30 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def run_bot():
-    bot_app = Application.builder().token(BOT_TOKEN).build()
+from telegram.request import HTTPXRequest
+
+request = HTTPXRequest(
+    connection_pool_size=8,
+    connect_timeout=30,
+    read_timeout=30,
+    write_timeout=30,
+    pool_timeout=30,
+)
+
+bot_app = (
+    Application.builder()
+    .token(BOT_TOKEN)
+    .request(request)
+    .get_updates_request(
+        HTTPXRequest(
+            connect_timeout=30,
+            read_timeout=40,
+            write_timeout=30,
+            pool_timeout=30,
+        )
+    )
+    .build()
+)
     bot_app.add_handler(MessageHandler(filters.VIDEO_NOTE, handle_video))
     await bot_app.initialize()
     await bot_app.start()
