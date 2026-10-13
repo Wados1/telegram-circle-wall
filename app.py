@@ -50,7 +50,7 @@ if not INDEX_FILE.exists():
         "static/index.html not found. "
         "Check that the file exists in the static folder."
     )
-
+BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Telegram Circle Wall")
 
 app.mount(
