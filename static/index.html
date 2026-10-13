@@ -26,20 +26,56 @@ html, body {
 }
 
 body {
-    transition: background-color 0.25s ease;
+    transition: background-color 0.25s ease;    
 }
 
+/* Затемнення фонового зображення */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0);
+    pointer-events: none;
+    z-index: 0;
+    transition: background 0.5s ease;
+}
+
+body.wall-has-videos::before {
+    background: rgba(0, 0, 0, 0.38);
+}
+
+/* Кружечки та кнопки залишаються поверх затемнення */
+header,
+#wall,
+#empty,
+#controls {
+    position: relative;
+    z-index: 1;
+}
+
+#controls {
+    position: fixed;
+    z-index: 100;
+}
+
+    
+    
+
 header {
-    height: 8vh;
+   height: 10vh;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 70px;
     text-align: center;
-    font-size: clamp(18px, 2.5vw, 34px);
-    font-weight: 800;
-    letter-spacing: 1px;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    font-family: "Brush Script MT", "Segoe Script", cursive;
+    font-size: clamp(34px, 5vw, 64px);
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #fff4df;
+    text-shadow:
+        0 2px 5px rgba(0, 0, 0, 0.65),
+        0 0 18px rgba(0, 0, 0, 0.4);
 }
 
 #wall {
@@ -408,6 +444,7 @@ function removeAllCards() {
     }
 
     videos.clear();
+    document.body.classList.remove("wall-has-videos");
     updateLayout();
 }
 
@@ -436,6 +473,7 @@ function addCard(item) {
     card.appendChild(video);
     wall.appendChild(card);
     videos.set(item.id, card);
+    document.body.classList.add("wall-has-videos");
 
     updateLayout();
 
