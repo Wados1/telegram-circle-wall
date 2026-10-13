@@ -181,59 +181,179 @@ header {
 <main id="wall"></main>
 
 <div id="controls">
-    <label id="colorLabel" title="Змінити колір фону">
-        <input id="colorPicker" type="color" value="#070707"
-               aria-label="Вибрати колір фону">
-        <span class="control-button" aria-hidden="true">🎨</span>
+    <label class="control-button" title="Завантажити фон"
+           aria-label="Завантажити фонове зображення">
+        🖼️
+        <input id="backgroundPicker" type="file"
+               accept="image/*"
+               style="display:none">
     </label>
 
+    <button id="titleButton" class="control-button"
+            title="Змінити назву">✏️</button>
+
     <button id="clearButton" class="control-button"
-            title="Очистити всі кружечки"
-            aria-label="Очистити всі кружечки">🗑️</button>
+            title="Очистити всі кружечки">🗑️</button>
 
     <button id="fullscreenButton" class="control-button"
-            title="На весь екран"
-            aria-label="Увімкнути повноекранний режим">⛶</button>
+            title="На весь екран">⛶</button>
 </div>
 
 <script>
 const wall = document.getElementById("wall");
 const empty = document.getElementById("empty");
-const colorPicker = document.getElementById("colorPicker");
+const backgroundPicker = document.getElementById("backgroundPicker");
+const titleButton = document.getElementById("titleButton");
 const clearButton = document.getElementById("clearButton");
 const fullscreenButton = document.getElementById("fullscreenButton");
-const colorLabel = document.getElementById("colorLabel");
+const pageTitle = document.querySelector("header");
 
 const videos = new Map();
 
-function setBackground(color) {
-    document.documentElement.style.setProperty("--wall-background", color);
-    colorPicker.value = color;
+// Збереження налаштувань у браузері
+const DB_NAME = "CircleWallSettings";
+const STORE_NAME = "settings";
 
+function openSettingsDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+
+        request.onupgradeneeded = () => {
+            request.result.createObjectStore(STORE_NAME);
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveSetting(key, value) {
+    const db = await openSettingsDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, "readwrite");
+        transaction.objectStore(STORE_NAME).put(value, key);
+
+        transaction.oncomplete = () => {
+            db.close();
+            resolve();
+        };
+
+        transaction.onerror = () => {
+            db.close();
+            reject(transaction.error);
+        };
+    });
+}
+
+async function getSetting(key) {
+    const db = await openSettingsDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, "readonly");
+        const request = transaction.objectStore(STORE_NAME).get(key);
+
+        request.onsuccess = () => {
+            db.close();
+            resolve(request.result);
+        };
+
+        request.onerror = () => {
+            db.close();
+            reject(request.error);
+        };
+    });
+}
+
+// Відновлення назви та фону
+async function restoreSettings() {
     try {
-        localStorage.setItem("circleWallBackground", color);
+        const savedTitle = localStorage.getItem("circleWallTitle");
+
+        if (savedTitle) {
+            pageTitle.textContent = savedTitle;
+        }
+
+        const savedBackground = await getSetting("backgroundImage");
+
+        if (savedBackground) {
+            document.body.style.backgroundImage =
+                `url("${savedBackground}")`;
+            document.body.style.backgroundSize = "cover";
+            document.body.style.backgroundPosition = "center";
+            document.body.style.backgroundRepeat = "no-repeat";
+        }
     } catch (error) {
-        console.warn("Не вдалося зберегти колір фону", error);
+        console.error("Помилка відновлення налаштувань:", error);
     }
 }
 
-try {
-    const savedColor = localStorage.getItem("circleWallBackground");
-    if (savedColor && /^#[0-9a-f]{6}$/i.test(savedColor)) {
-        setBackground(savedColor);
+restoreSettings();
+
+// Зміна назви сторінки
+titleButton.addEventListener("click", () => {
+    const newTitle = prompt(
+        "Введи нову назву:",
+        pageTitle.textContent
+    );
+
+    if (newTitle !== null && newTitle.trim() !== "") {
+        const title = newTitle.trim();
+        pageTitle.textContent = title;
+
+        try {
+            localStorage.setItem("circleWallTitle", title);
+        } catch (error) {
+            alert("Не вдалося зберегти назву.");
+        }
     }
-} catch (error) {
-    console.warn("Не вдалося прочитати збережений колір", error);
-}
-
-colorLabel.addEventListener("click", () => {
-    colorPicker.click();
 });
 
-colorPicker.addEventListener("input", event => {
-    setBackground(event.target.value);
+// Завантаження фонового зображення з комп'ютера
+backgroundPicker.addEventListener("change", async () => {
+    const file = backgroundPicker.files[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+        alert("Вибери файл із зображенням.");
+        backgroundPicker.value = "";
+        return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+        alert("Зображення має бути меншим за 15 МБ.");
+        backgroundPicker.value = "";
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = async () => {
+        try {
+            const imageData = reader.result;
+
+            await saveSetting("backgroundImage", imageData);
+
+            document.body.style.backgroundImage =
+                `url("${imageData}")`;
+            document.body.style.backgroundSize = "cover";
+            document.body.style.backgroundPosition = "center";
+            document.body.style.backgroundRepeat = "no-repeat";
+        } catch (error) {
+            console.error(error);
+            alert("Не вдалося зберегти фон.");
+        }
+    };
+
+    reader.onerror = () => {
+        alert("Не вдалося прочитати зображення.");
+    };
+
+    reader.readAsDataURL(file);
 });
 
+// Розмір кружечків залежно від їх кількості
 function updateLayout() {
     const count = videos.size;
 
@@ -273,14 +393,17 @@ function updateLayout() {
     wall.style.gap = `${gap}px`;
 }
 
+// Видалення кружечків з екрана
 function removeAllCards() {
     for (const card of videos.values()) {
         const video = card.querySelector("video");
+
         if (video) {
             video.pause();
             video.removeAttribute("src");
             video.load();
         }
+
         card.remove();
     }
 
@@ -288,6 +411,7 @@ function removeAllCards() {
     updateLayout();
 }
 
+// Додавання нового відео
 function addCard(item) {
     if (!item || !item.id || !item.url || videos.has(item.id)) {
         return;
@@ -320,9 +444,11 @@ function addCard(item) {
     });
 }
 
+// Завантаження наявних відео
 async function loadExisting() {
     try {
         const response = await fetch("/api/videos");
+
         if (!response.ok) {
             throw new Error("Не вдалося завантажити відео");
         }
@@ -334,6 +460,7 @@ async function loadExisting() {
     }
 }
 
+// Отримання нових відео від сервера
 const stream = new EventSource("/api/events");
 
 stream.onmessage = event => {
@@ -355,8 +482,9 @@ stream.onerror = () => {
     console.warn("З'єднання з сервером відновлюється...");
 };
 
+// Кнопка очищення всіх кружечків
 clearButton.addEventListener("click", async () => {
-    const confirmed = window.confirm(
+    const confirmed = confirm(
         "Точно очистити всі кружечки? Відео буде видалено із сервера."
     );
 
@@ -370,20 +498,22 @@ clearButton.addEventListener("click", async () => {
         });
 
         if (!response.ok) {
-            throw new Error("Сервер не зміг очистити кружечки");
+            throw new Error("Не вдалося очистити кружечки");
         }
 
         const result = await response.json();
         removeAllCards();
+
         alert(`Готово! Видалено кружечків: ${result.deleted}`);
     } catch (error) {
         console.error(error);
-        alert("Не вдалося очистити кружечки. Перевір з'єднання та спробуй ще раз.");
+        alert("Не вдалося очистити кружечки. Перевір сервер.");
     } finally {
         clearButton.disabled = false;
     }
 });
 
+// Повноекранний режим
 fullscreenButton.addEventListener("click", async () => {
     try {
         if (!document.fullscreenElement) {
@@ -392,23 +522,26 @@ fullscreenButton.addEventListener("click", async () => {
             await document.exitFullscreen();
         }
     } catch (error) {
-        alert("Не вдалося ввімкнути повноекранний режим у цьому браузері.");
+        alert("Не вдалося ввімкнути повноекранний режим.");
     }
 });
 
 document.addEventListener("fullscreenchange", () => {
-    fullscreenButton.textContent = document.fullscreenElement ? "⤢" : "⛶";
-    fullscreenButton.title = document.fullscreenElement
-        ? "Вийти з повноекранного режиму"
-        : "На весь екран";
+    fullscreenButton.textContent =
+        document.fullscreenElement ? "⤢" : "⛶";
+
+    fullscreenButton.title =
+        document.fullscreenElement
+            ? "Вийти з повноекранного режиму"
+            : "На весь екран";
 
     setTimeout(updateLayout, 100);
 });
 
 window.addEventListener("resize", updateLayout);
 
+// Запуск сторінки
 loadExisting();
 </script>
-
 </body>
 </html>
