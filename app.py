@@ -58,6 +58,11 @@ app.mount(
     StaticFiles(directory=str(MEDIA)),
     name="media",
 )
+app.mount(
+    "/static",
+    StaticFiles(directory=str(BASE_DIR / "static")),
+    name="static",
+)
 
 HTML = INDEX_FILE.read_text(encoding="utf-8")
 
