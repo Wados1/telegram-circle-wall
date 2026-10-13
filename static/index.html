@@ -96,22 +96,46 @@ header {
     height: 100%;
     min-width: 0;
     min-height: 0;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    overflow: hidden;
-    background: #151515;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    overflow: visible;
+    background: transparent;
     animation: appear 0.45s ease-out;
+}
+
+.card video {
+    display: block;
+    flex: 0 0 calc(100% - 24px);
+    width: calc(100% - 24px);
+    height: calc(100% - 24px);
+    min-width: 0;
+    min-height: 0;
+    object-fit: cover;
+    border-radius: 50%;
     box-shadow:
         0 0 0 2px rgba(255,255,255,0.16),
         0 8px 30px rgba(0,0,0,0.35);
 }
 
-.card video {
+.sender-name {
     display: block;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 50%;
+    height: 18px;
+    flex: 0 0 18px;
+    overflow: hidden;
+    color: #fff;
+    font-size: clamp(10px, 1.1vw, 16px);
+    line-height: 18px;
+    font-weight: 600;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.95),
+        0 0 8px rgba(0, 0, 0, 0.9);
 }
 
 #empty {
@@ -542,6 +566,13 @@ function addCard(item) {
     });
 
     card.appendChild(video);
+
+    const sender = document.createElement("div");
+    sender.className = "sender-name";
+    sender.textContent = item.sender || "Гість";
+    sender.title = item.sender || "Гість";
+    card.appendChild(sender);
+
     wall.appendChild(card);
     videos.set(item.id, card);
     document.body.classList.add("wall-has-videos");
